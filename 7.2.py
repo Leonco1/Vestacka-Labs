@@ -3,6 +3,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.exceptions import ConvergenceWarning
+from sklearn.preprocessing import LabelEncoder
 
 dataset = [
     [9.2, 0.755, 0.18, 2.2, 0.148, 10.0, 103.0, 0.9969, 2.87, 1.36, 10.2, 8.476],
@@ -144,17 +145,70 @@ dataset = [
     [7.2, 0.6, 0.04, 2.5, 0.076, 18.0, 88.0, 0.99745, 3.53, 0.55, 9.5, 0.385],
     [9.2, 0.56, 0.18, 1.6, 0.078, 10.0, 21.0, 0.99576, 3.15, 0.49, 9.9, 0.136],
     [7.6, 0.715, 0.0, 2.1, 0.068, 30.0, 35.0, 0.99533, 3.48, 0.65, 11.4, 6.845]]
+
+
 def trainee_factory(set):
-    x=[row[:-1]for row in set]
-    y=[row[-1]for row in set]
-    return  x,y
+    x = [row[:-1] for row in set]
+    y = [row[-1] for row in set]
+    return x, y
+
+
+def transform_dataset(dataset_tmp):
+    new_dataset = list()
+    for row in dataset_tmp:
+        new_row = list()
+        new_row = row[:-1]
+        if (row[-1]) >= 5:
+            new_row.append(1)
+        else:
+            new_row.append(0)
+        new_dataset.append(new_row)
+    return new_dataset
+
+
+def divide_sets(set, x):
+    test_set = set[:int(x * len(set))]
+    train_set = set[int(x * len(set)):]
+    return train_set, test_set
+
+
+def create_new_set(set, least_important_feature):
+    new_x = list()
+    for row in set:
+        new_row = [row[i] for i in range(len(row)) if i != least_important_feature]
+        new_x.append(new_row)
+    return new_x
+
+def calculate_accuracy(test_x,test_y,classifier):
+    accuracy = 0
+    for x, y in zip(test_x, test_y):
+        predicted = classifier.predict([x])[0]
+        if (predicted == y):
+            accuracy += 1
+    return  accuracy/len(test_y)
+
 if __name__ == '__main__':
     warnings.filterwarnings('ignore', category=ConvergenceWarning)
-    dobar_kvalitet=[row for row in dataset if row[-1]>=5]
-    los_kvalitet=[row for row in dataset if row[-1]<5]
-    x = int(input())/100
-    test_set=dobar_kvalitet[:int(len(dobar_kvalitet))]+los_kvalitet[:int(len(los_kvalitet))]
-    train_set=dobar_kvalitet[int(len(dobar_kvalitet)):]+los_kvalitet[int(len(los_kvalitet)):]
-    train_x,train_y=trainee_factory(train_set)
-    test_x,test_y=trainee_factory(test_set)
-    
+    x = (int(input()) / 100)
+    tree = DecisionTreeClassifier(criterion="gini", random_state=0)
+    train_set, test_set = divide_sets(transform_dataset(dataset), x)
+    train_x, train_y = trainee_factory(train_set)
+    test_x, test_y = trainee_factory(test_set)
+    tree.fit(train_x, train_y)
+    features = list(tree.feature_importances_)
+    least_important_feature = features.index(min(features))
+    new_train_x = create_new_set(train_x, least_important_feature)
+    new_test_x=create_new_set(test_x,least_important_feature)
+    classifier=MLPClassifier(15,activation="relu",learning_rate_init=0.001,max_iter=200,random_state=0)
+    standard_scaler=StandardScaler()
+    standard_scaler.fit(new_train_x)
+    classifier.fit(standard_scaler.transform(new_train_x),train_y)
+    new_test_x_standard=standard_scaler.transform(new_test_x)
+    print(f"Tocnost so StandardScaler: {calculate_accuracy(new_test_x_standard,test_y,classifier)}")
+    min_max_scaler=MinMaxScaler()
+    min_max_scaler.fit(new_train_x)
+    classifier.fit(min_max_scaler.transform(new_train_x),train_y)
+    new_test_x_min_max=min_max_scaler.transform(new_test_x)
+    print(f"Tocnost so MinMaxScaler: {calculate_accuracy(new_test_x_min_max,test_y,classifier)}")
+
+
